@@ -50,24 +50,34 @@ hold off
 
 
 %% Define the object (Diamond)
-% omega = 3;
-% c = 3;
-% radius = 5;
-% n = 21;
-% center = ceil(n/2);
-% [X_obj, Y_obj] = meshgrid(1:n, 1:n);
-% obj = (abs(X_obj - center) + abs(Y_obj - center)) <= radius;
-
+omega = 3;
+c = 3;
+radius = 5;
+n = 21;
+center = ceil(n/2);
+[X_obj, Y_obj] = meshgrid(1:n, 1:n);
+obj = (abs(X_obj - center) + abs(Y_obj - center)) <= radius;
+obj= obj.*1.5;
 n = 21;
 line_length = 7;
 obj = zeros(n, n);
 center = ceil(n/2);
 half_length = floor(line_length/2);
-%obj(center, center-half_length:center+half_length) = 1;
+% Horizontal
+obj(center, center-half_length:center+half_length) = 1.5;
+% % % Vertical
+% obj = zeros(n, n);
+% obj(center-half_length:center+half_length, center) = 1.5;
+% Diagonal line at 45 degrees
 
-obj = zeros(n, n);
-obj(center-half_length:center+half_length, center) = 1;
-
+% obj = zeros(n , n);
+% for i = -half_length:half_length
+%     row = center + i;
+%     col = center + i;
+%     if row >= 1 && row <= n && col >= 1 && col <= n
+%         obj(row, col) = 1.5;
+%     end
+% end
 
 % Convert to double
 chi = double(obj);
@@ -109,16 +119,21 @@ hold off
 % %     x = x + temp; 
 % % end
 
-
-m = 40;
+h = lambda/20;
+m = 20;
 antenna_cordintes = [];
 %u_sc = zeros([m 1]);
-antenna_x = linspace(Rec_x(1) -2 , Rec_x(2)+2, m/2);
-antenna_y = ones([1 m/2])*Rec_y(1);
-%antenna_y2 = -1*ones([1 m/2])*Rec_y(1);
-%antenna_y2 = linspace(-Rec_y(1) - 5, -Rec_y(2), m/2);
+antenna_x = linspace(Rec_x(1), Rec_x(2), m);
+antenna_y = ones([1 m])*Rec_y(1);
+%antenna_y2 = -1*ones([1 m/4])*Rec_y(1);
+%antenna_y2 = linspace(-Rec_y(1), -Rec_y(2), m/2);
+%antenna_x_left = ones([1 m/4])*Rec_x(1);
+%antenna_x_right = ones([1 m/4])*Rec_x(2);
+%antenna_y_vertical = linspace(-Rec_y(1) , Rec_y(1), m/4);
 antenna_cordintes = [antenna_x ; antenna_y];
 %antenna_cordintes = [antenna_cordintes, [antenna_x ; antenna_y2]];
+%antenna_cordintes = [antenna_cordintes, [antenna_x_left ; antenna_y_vertical]];
+%antenna_cordintes = [antenna_cordintes, [antenna_x_right ; antenna_y_vertical]];
 % Calculate distances between x and y
 dist_source2image = zeros(n);
 dist_image2antenne = cell(m, 1);
@@ -132,20 +147,34 @@ for m = 1:length(antenna_cordintes)
     end
     dist_image2antenne{m} = temp;
 end
+
 A = zeros([m N]);
 for j = 1:m
     sum = 0;
     %for i = 1:n
-        sum = sum + besselh(0,2,kb*dist_image2antenne{j})*besselh(0,2,kb*dist_source2image);
+    sum = besselh(0,2,kb*dist_image2antenne{j})*besselh(0,2,kb*dist_source2image);
     %end    
 %u_sc(j) = (-kb^2)/(16).*sum;
-A(j,:) = vec((-kb^2)/(16).*sum)';
+    A(j,:) = vec((-kb^2*(h^2))/(16).*sum)';
 
+end 
+amountfreq = 100;
+A_new = zeros([m*amountfreq n*n]);
+kbs = linspace(1, 10, amountfreq);
+index = 1;
+for j = 1:m
+    for i = 1:amountfreq
+        kb = kbs(i);
+        sum = besselh(0,2,kb*dist_image2antenne{j})*besselh(0,2,kb*dist_source2image);
+        A_new(index,:) = vec((-kb^2*(h^2))/(16).*sum)';
+        index = index + 1;
+    end
 end    
 %A = ((-1)/(16))*(h.*u_sc);
 
 figure(5)
 imagesc(real(A)) % Check documentation of imagesc for X and Y axis
+
 
 
 figure(6)
@@ -166,13 +195,16 @@ u_sc = A*chi_vec;
 
 image = pinv(A)*u_sc;
 image = reshape(image, [n n]);
+
 figure(7)
 hold on
 title(['Reconstruction using ', num2str(m), ' antennas'])
 colorbar;
-%clim([0 0.25])
-imagesc(real(image))
+%clim([0 0.5])
+imagesc(max(real(image),0))
 axis equal tight
+xlabel("X - pixels")
+ylabel("Y - pixels")
 set(gca, 'YDir','reverse')
 hold off
 
@@ -183,5 +215,37 @@ clf(8)
 hold on
 title("Singular values of the A matrix")
 plot(diag(S))
+xlabel('Number of antennas')
+grid on
 set(gca, 'YScale','log')
+hold off
+
+[~, S, ~] = svd(A_new);
+
+figure(9)
+clf(9)
+hold on
+title("Singular values of the A_{new} matrix")
+plot(diag(S))
+xlabel('Number of singular values')
+grid on
+set(gca, 'YScale','log')
+hold off
+
+
+u_sc_new = A_new*chi_vec;
+
+image_new = pinv(A_new)*u_sc_new;
+image_new = reshape(image_new, [n n]);
+
+figure(10)
+hold on
+title(['Reconstruction using ', num2str(m), ' antennas and ', num2str(amountfreq), ' frequencies'])
+colorbar;
+%clim([0 0.5])
+imagesc(max(real(image_new),0))
+axis equal tight
+xlabel("X - pixels")
+ylabel("Y - pixels")
+set(gca, 'YDir','reverse')
 hold off
