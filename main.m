@@ -1,5 +1,5 @@
 clear 
-close all
+%close all
 kb = 1; % For simplicity
 lambda = 2*pi/kb; %meter
 ps = [lambda/2; 10*lambda];
@@ -9,6 +9,7 @@ x = 0:lambda/20:lambda;
 y = 0:lambda/20:lambda;
 
 figure(1)
+clf(1)
 hold on
 title("Sketch of the situation")
 xlim([-3*lambda 3*lambda])
@@ -80,11 +81,11 @@ obj= obj.*1.5;
 % half_length = floor(line_length/2);
 % % Horizontal
 % obj(center, center-half_length:center+half_length) = 1.5;
-% % % Vertical
-% obj = zeros(n, n);
-% obj(center-half_length:center+half_length, center) = 1.5;
-% % Diagonal line at 45 degrees
-% 
+% % % % Vertical
+% % obj = zeros(n, n);
+% % obj(center-half_length:center+half_length, center) = 1.5;
+% % % Diagonal line at 45 degrees
+% % 
 % obj = zeros(n , n);
 % for i = -half_length:half_length
 %     row = center + i;
@@ -136,20 +137,21 @@ Rec_y = [1.5*lambda;  1.5*lambda];
 % % end
 
 h = lambda/20;
-m = 20;
+m = 40;
 antenna_cordintes = [];
 %u_sc = zeros([m 1]);
-antenna_x = linspace(Rec_x(1), Rec_x(2), m/4);
-antenna_y = ones([1 m/4])*Rec_y(1);
-antenna_y2 = -1*ones([1 m/4])*Rec_y(1);
-antenna_y2 = linspace(-Rec_y(1), -Rec_y(2), m/4);
-antenna_x_left = ones([1 m/4])*Rec_x(1);
-antenna_x_right = ones([1 m/4])*Rec_x(2);
-antenna_y_vertical = linspace(-Rec_y(1) , Rec_y(1), m/4);
+antenna_x = linspace(Rec_x(1), Rec_x(2), m);
+antenna_y = ones([1 m])*Rec_y(1);
 antenna_cordintes = [antenna_x ; antenna_y];
-antenna_cordintes = [antenna_cordintes, [antenna_x ; antenna_y2]];
-antenna_cordintes = [antenna_cordintes, [antenna_x_left ; antenna_y_vertical]];
-antenna_cordintes = [antenna_cordintes, [antenna_x_right ; antenna_y_vertical]];
+% antenna_y2 = -1*ones([1 m/4])*Rec_y(1);
+% antenna_y2 = linspace(-Rec_y(1), -Rec_y(2), m/4);
+% antenna_x_left = ones([1 m/4])*Rec_x(1);
+% antenna_x_right = ones([1 m/4])*Rec_x(2);
+% antenna_y_vertical = linspace(-Rec_y(1) , Rec_y(1), m/4);
+% 
+% antenna_cordintes = [antenna_cordintes, [antenna_x ; antenna_y2]];
+% antenna_cordintes = [antenna_cordintes, [antenna_x_left ; antenna_y_vertical]];
+% antenna_cordintes = [antenna_cordintes, [antenna_x_right ; antenna_y_vertical]];
 % Calculate distances between x and y
 dist_source2image = zeros(n);
 dist_image2antenne = cell(m, 1);
@@ -163,7 +165,7 @@ for m = 1:length(antenna_cordintes)
     end
     dist_image2antenne{m} = temp;
 end
-
+kb = 1;
 A = zeros([m N]);
 for j = 1:m
     sum = 0;
@@ -213,9 +215,12 @@ u_sc = A*chi_vec;
 SNR_dB = 20; % e.g., 20 dB SNR
 signal_power = norm(u_sc)^2 / length(u_sc);
 noise_power = signal_power / (10^(SNR_dB/10));
+noise_std = sqrt(noise_power);  % Standard deviation for noise
+noise = noise_std * complex(randn(m, 1)/sqrt(2), randn(m, 1)/sqrt(2));
 
-noise = noise_power*complex((1/sqrt(2))*randn([m 1]) ,1/sqrt(2)*randn([m 1]));
-u_sc = A*chi_vec + noise;
+u_sc = A*chi_vec;
+u_sc_noise = u_sc + noise;
+snr(u_sc, noise);
 
 image = pinv(A)*u_sc;
 image = reshape(image, [n n]);
@@ -257,8 +262,12 @@ grid on
 set(gca, 'YScale','log')
 hold off
 
-noise_new = noise_power*complex((1/sqrt(2))*randn([m*amountfreq 1]) ,1/sqrt(2)*randn([m*amountfreq 1]));
-u_sc_new = A_new*chi_vec + noise_new;
+u_sc_new = A_new*chi_vec;
+signal_power_new = norm(u_sc_new)^2 / length(u_sc_new);
+noise_power_new = signal_power_new / (10^(SNR_dB/10));
+noise_std_new = sqrt(noise_power_new);  % Standard deviation for noise
+noise_new = noise_std_new * complex(randn(m*amountfreq, 1)/sqrt(2), randn(m*amountfreq, 1)/sqrt(2));
+u_sc_new = A_new*chi_vec;% + noise_new;
 
 image_new = pinv(A_new)*u_sc_new;
 image_new = reshape(image_new, [n n]);
@@ -281,10 +290,9 @@ hold off
 u_sc = A*chi_vec;
 %u_sc = vec(int);
 %noise  = (1/sqrt(2))*randn([m 1]) + (1*j/sqrt(2))*randn([m 1]);
-SNR_dB = 80; % e.g., 20 dB SNR
 signal_power = norm(u_sc)^2 / length(u_sc);
 noise_power = signal_power / (10^(SNR_dB/10));
-SNRs = linspace(0 ,100, 100);
+SNRs = linspace(0 ,250, 100);
 error_plot = zeros(length(SNRs), 1);
 error_plot_new = zeros(length(SNRs), 1);
 for i = 1:length(SNRs)
@@ -293,8 +301,9 @@ for i = 1:length(SNRs)
     SNR_dB = SNRs(i);
     signal_power = norm(u_sc)^2 / length(u_sc);
     noise_power = signal_power / (10^(SNR_dB/10));
-
-    noise = noise_power*complex((1/sqrt(2))*randn([m 1]) ,1/sqrt(2)*randn([m 1]));
+    noise_std = sqrt(noise_power);  % Standard deviation for noise
+    noise = noise_std * complex(randn(m, 1)/sqrt(2), randn(m, 1)/sqrt(2));
+    
     u_sc = A*chi_vec + noise;
     image = pinv(A)*u_sc;
     image = reshape(image, [n n]);
@@ -304,7 +313,9 @@ for i = 1:length(SNRs)
     u_sc_new = A_new*chi_vec;
     signal_power_new = norm(u_sc_new)^2 / length(u_sc_new);
     noise_power_new = signal_power_new / (10^(SNR_dB/10));
-    noise_new = noise_power_new*complex((1/sqrt(2))*randn([m*amountfreq 1]) ,1/sqrt(2)*randn([m*amountfreq 1]));
+    noise_std_new = sqrt(noise_power_new);  % Standard deviation for noise
+    noise_new = noise_std_new * complex(randn(m*amountfreq, 1)/sqrt(2), randn(m*amountfreq, 1)/sqrt(2));
+    
     u_sc_new = A_new*chi_vec + noise_new;
 
     image_new = pinv(A_new)*u_sc_new;
